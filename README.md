@@ -1,6 +1,6 @@
 # API Flask with PostgreSQL
 
-This project represents a Flask API created for managing metheorological values, that interacts with a PostgreSQL database. It provides endpoints for managing countries, cities, and temperatures.
+This project represents a Flask API created for managing meteorological values, that interacts with a PostgreSQL database. It provides endpoints for managing countries, cities, and temperatures.
 
 ## Project Structure
 
