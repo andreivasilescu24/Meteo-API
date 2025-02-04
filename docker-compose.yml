@@ -6,17 +6,17 @@ services:
     ports:
       - "6000:6000"
     volumes:
-      - .:/app
+      - .:/api
     depends_on:
       - db
     environment:
-      DATABASE_URL: db
-      DATABASE_USER: scd_student
-      DATABASE_PASSWORD: tema2_scd
-      DATABASE_NAME: scd_db
-      DATABASE_PORT: 5432
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_USER: ${DATABASE_USER}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      DATABASE_NAME: ${DATABASE_NAME}
+      DATABASE_PORT: ${DATABASE_PORT}
     networks:
-      - tema2_network
+      - api_db_network
 
   db:
     image: postgres
@@ -25,13 +25,14 @@ services:
     ports: 
       - "5432:5432"
     environment:
-      POSTGRES_USER: scd_student
-      POSTGRES_PASSWORD: tema2_scd
-      POSTGRES_DB: scd_db
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
-      - tema2_network
+      - api_db_network
+      - db_management_network
 
   pgadmin:
     image: dpage/pgadmin4
@@ -40,22 +41,30 @@ services:
     ports:
       - "8081:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@tema2.com
-      PGADMIN_DEFAULT_PASSWORD: tema2_admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
     depends_on:
       - db
     volumes:
       - pgadmin-data:/var/lib/pgadmin
     networks:
-      - tema2_network
+      - db_management_network
 
 volumes:
   postgres-data:
   pgadmin-data:
 
 networks:
-  tema2_network:
+  api_db_network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.10.0/24
+  db_management_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.20.0/24
 
 
 

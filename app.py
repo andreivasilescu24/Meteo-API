@@ -18,36 +18,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
-
-# class Country(db.Model):
-#     __tablename__ = 'Tari'
-#     id = mapped_column(Integer, primary_key=True, autoincrement=True)
-#     nume_tara = mapped_column(String, unique=True, nullable=False)
-#     latitudine = mapped_column(Double)
-#     longitudine = mapped_column(Double)
-    
-#     cities = relationship('City', backref='country', cascade='all, delete') 
-
-# class City(db.Model):
-#     __tablename__ = 'Orase'
-#     id = mapped_column(Integer, primary_key=True, autoincrement=True)
-#     id_tara = mapped_column(Integer, ForeignKey('Tari.id'), nullable=False)
-#     nume_oras = mapped_column(String, nullable=False)
-#     latitudine = mapped_column(Double)
-#     longitudine = mapped_column(Double)
-
-#     __table_args__ = (UniqueConstraint('id_tara', 'nume_oras', name='uc_id_tara_nume_oras'),)
-#     temperatures = relationship('Temperature', backref='city', cascade='all, delete')
-
-# class Temperature(db.Model):
-#     __tablename__ = 'Temperaturi'
-#     id = mapped_column(Integer, primary_key=True, autoincrement=True)
-#     valoare = mapped_column(Double)
-#     timestamp = mapped_column(DateTime, default=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3], unique=True)
-#     id_oras = mapped_column(Integer, ForeignKey('Orase.id'), nullable=False)
-
-#     __table_args__ = (UniqueConstraint('id_oras', 'timestamp', name='uc_id_oras_timestamp'),)
-
 with app.app_context():
     db.create_all()
     print('Tables created')
@@ -67,9 +37,20 @@ def check_fields_type_validity(expected_types, payload):
         
     return True, None, None
 
+def is_valid_date(date_str):
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False
+
 @app.route('/api/countries', methods = ['POST'])
 def add_country():
-    payload = request.json
+    if request.is_json:
+        payload = request.json
+    else:
+        return jsonify({"error": "Request should be of type JSON"}), 400
+
     required_fields = ['nume', 'lat', 'lon']
     required_types = {'nume': str, 'lat': float, 'lon': float}
 
@@ -81,6 +62,9 @@ def add_country():
     valid_types, invalid_field, expected_type = check_fields_type_validity(required_types, payload)
     if not valid_types:
         return jsonify({"error": "Field `{}` should be of type {}".format(invalid_field, expected_type)}), 400
+
+    if Country.query.filter_by(nume_tara = payload['nume']).scalar():
+        return jsonify({"error": "Country name already exists"}), 409
 
     new_country = Country(nume_tara = payload['nume'], latitudine = payload['lat'], longitudine = payload['lon'])
     db.session.add(new_country)
@@ -106,7 +90,11 @@ def get_countries():
 
 @app.route('/api/countries/<int:id>', methods = ['PUT'])
 def update_country(id):
-    payload = request.json
+    if request.is_json:
+        payload = request.json
+    else:
+        return jsonify({"error": "Request should be of type JSON"}), 400
+
     required_fields = ['id', 'nume', 'lat', 'lon']
     required_types = {'id': int, 'nume': str, 'lat': float, 'lon': float}
 
@@ -159,14 +147,18 @@ def delete_country(id):
 
 @app.route('/api/cities', methods = ['POST'])
 def add_city():
-    payload = request.json
+    if request.is_json:
+        payload = request.json
+    else:
+        return jsonify({"error": "Request should be of type JSON"}), 400
+
     required_fields = ['idTara', 'nume', 'lat', 'lon']
     required_types = {'idTara': int, 'nume': str, 'lat': float, 'lon': float}
 
     valid_fields, missing_field = check_fields_validity(required_fields, payload)
 
     if not valid_fields:
-            return jsonify({"error": "Field `{}` doesn't exist".format(missing_field)}), 400
+        return jsonify({"error": "Field `{}` doesn't exist".format(missing_field)}), 400
         
     valid_types, invalid_field, expected_type = check_fields_type_validity(required_types, payload)
     if not valid_types:
@@ -210,7 +202,11 @@ def get_cities_by_country(id_tara):
 
 @app.route('/api/cities/<int:id>', methods = ['PUT'])
 def update_city(id):
-    payload = request.json
+    if request.is_json:
+        payload = request.json
+    else:
+        return jsonify({"error": "Request should be of type JSON"}), 400
+
     required_fields = ['id', 'idTara', 'nume', 'lat', 'lon']
     required_types = {'id': int, 'idTara': int, 'nume': str, 'lat': float, 'lon': float}
 
@@ -256,7 +252,7 @@ def delete_city(id):
         
     city = City.query.filter_by(id = id).scalar()
     if not city:
-        return jsonify({"error": "Provided ID was not found"}), 404
+        return Response(status=404)
 
     db.session.delete(city)
     db.session.commit()
@@ -265,9 +261,13 @@ def delete_city(id):
 
 @app.route('/api/temperatures', methods = ['POST'])
 def add_temperature():
-    payload = request.json
-    required_fields = ["id_oras", "valoare"]
-    required_types = {"id_oras": int, "valoare": float}
+    if request.is_json:
+        payload = request.json
+    else:
+        return jsonify({"error": "Request should be of type JSON"}), 400
+
+    required_fields = ["idOras", "valoare"]
+    required_types = {"idOras": int, "valoare": float}
 
     valid_fields, missing_field = check_fields_validity(required_fields, payload)
 
@@ -278,12 +278,12 @@ def add_temperature():
     if not valid_types:
         return jsonify({"error": "Field `{}` should be of type {}".format(invalid_field, expected_type)}), 400
 
-    if not City.query.filter_by(id = payload['id_oras']).scalar():
+    if not City.query.filter_by(id = payload['idOras']).scalar():
         return jsonify({"error": "Provided city ID doesn't match any city"}), 404
 
-    new_temperature = Temperature(valoare = payload['valoare'], id_oras = payload['id_oras'], timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3])
+    new_temperature = Temperature(valoare = payload['valoare'], id_oras = payload['idOras'], timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3])
 
-    if Temperature.query.filter(Temperature.id_oras == payload['id_oras']).filter_by(timestamp = new_temperature.timestamp).scalar(): 
+    if Temperature.query.filter(Temperature.id_oras == payload['idOras']).filter_by(timestamp = new_temperature.timestamp).scalar(): 
         return jsonify({"error": "Same city ID and timestamp are not allowed"}), 409
     
     db.session.add(new_temperature)
@@ -299,12 +299,32 @@ def add_temperature():
 
 @app.route('/api/temperatures', methods = ['GET'])
 def get_temperatures():
-    lat = request.args.get('lat', type=float)
-    lon = request.args.get('lon', type=float)
-    
-    check_date = lambda date_str: datetime.strptime(date_str, "%Y-%m-%d") if date_str else None
-    from_date = check_date(request.args.get('from'))
-    until_date = check_date(request.args.get('until'))
+    try:
+        lat = request.args.get('lat', type=float)
+    except ValueError:
+        return jsonify({"error": "Latitude should be a float"}), 400
+
+    try:
+        lon = request.args.get('lon', type=float)
+    except ValueError:
+        return jsonify({"error": "Longitude should be a float"}), 400
+
+
+    from_date = request.args.get('from')
+    until_date = request.args.get('until')
+
+    if from_date: 
+        if is_valid_date(from_date):
+            from_date = datetime.strptime(from_date, "%Y-%m-%d")
+        else:
+            return jsonify({"error": "Invalid date format. Should be YYYY-MM-DD"}), 400
+
+    if until_date: 
+        if is_valid_date(until_date):
+            until_date = datetime.strptime(until_date, "%Y-%m-%d")
+        else:
+            return jsonify({"error": "Invalid date format. Should be YYYY-MM-DD"}), 400
+
 
     filtered_temperatures = None
 
@@ -340,9 +360,20 @@ def get_temperatures():
     
 @app.route('/api/temperatures/cities/<int:id_oras>', methods = ['GET'])
 def get_temperatures_by_city(id_oras):
-    check_date = lambda date_str: datetime.strptime(date_str, "%Y-%m-%d") if date_str else None
-    from_date = check_date(request.args.get('from'))
-    until_date = check_date(request.args.get('until'))
+    from_date = request.args.get('from')
+    until_date = request.args.get('until')
+
+    if from_date: 
+        if is_valid_date(from_date):
+            from_date = datetime.strptime(from_date, "%Y-%m-%d")
+        else:
+            return jsonify({"error": "Invalid date format. Should be YYYY-MM-DD"}), 400
+
+    if until_date: 
+        if is_valid_date(until_date):
+            until_date = datetime.strptime(until_date, "%Y-%m-%d")
+        else:
+            return jsonify({"error": "Invalid date format. Should be YYYY-MM-DD"}), 400
 
     filtered_temperatures = Temperature.query.filter_by(id_oras = id_oras)
 
@@ -358,9 +389,20 @@ def get_temperatures_by_city(id_oras):
 
 @app.route('/api/temperatures/countries/<int:id_tara>', methods = ['GET'])
 def get_temperatures_by_country(id_tara):
-    check_date = lambda date_str: datetime.strptime(date_str, "%Y-%m-%d") if date_str else None
-    from_date = check_date(request.args.get('from'))
-    until_date = check_date(request.args.get('until'))
+    from_date = request.args.get('from')
+    until_date = request.args.get('until')
+
+    if from_date: 
+        if is_valid_date(from_date):
+            from_date = datetime.strptime(from_date, "%Y-%m-%d")
+        else:
+            return jsonify({"error": "Invalid date format. Should be YYYY-MM-DD"}), 400
+
+    if until_date: 
+        if is_valid_date(until_date):
+            until_date = datetime.strptime(until_date, "%Y-%m-%d")
+        else:
+            return jsonify({"error": "Invalid date format. Should be YYYY-MM-DD"}), 400
 
     filtered_temperatures = Temperature.query.filter(Temperature.city.has(id_tara = id_tara))
 
@@ -376,7 +418,11 @@ def get_temperatures_by_country(id_tara):
 
 @app.route('/api/temperatures/<int:id>', methods = ['PUT'])
 def update_temperature(id):
-    payload = request.json
+    if request.is_json:
+        payload = request.json
+    else:
+        return jsonify({"error": "Request should be of type JSON"}), 400
+
     required_fields = ["id", "idOras", "valoare"]
     required_types = {"id": int, "idOras": int, "valoare": float}
 
@@ -401,7 +447,7 @@ def update_temperature(id):
     temperature_to_update.id_oras = payload['idOras']
     temperature_to_update.timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
-    if Temperature.query.filter(Temperature.id_oras == payload['id_oras']).filter_by(timestamp = temperature_to_update.timestamp).scalar():
+    if Temperature.query.filter(Temperature.id_oras == payload['idOras']).filter_by(timestamp = temperature_to_update.timestamp).scalar():
         return jsonify({"error": "Same city ID and timestamp are not allowed"}), 409
     
     try:
@@ -429,4 +475,4 @@ def delete_temperature(id):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=6000)
